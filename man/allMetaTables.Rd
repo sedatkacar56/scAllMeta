@@ -24,15 +24,15 @@ to keep output readable.
 \details{
 The function applies the following rules per column:
 \itemize{
-  \item \strong{> 50 unique values}: Prints "Not applicable" along with the
-    total number of unique values. Typical for continuous variables such as
-    \code{nCount_RNA} or \code{percent.mt}.
-  \item \strong{21–50 unique values}: Prints the top 20 most frequent
-    categories sorted in decreasing order, along with a note indicating
-    how many unique values exist in total.
-  \item \strong{<= 20 unique values}: Prints the full frequency table.
-    Typical for categorical variables such as \code{seurat_clusters} or
-    \code{orig.ident}.
+\item \strong{> 50 unique values}: Prints "Not applicable" along with the
+total number of unique values. Typical for continuous variables such as
+\code{nCount_RNA} or \code{percent.mt}.
+\item \strong{21–50 unique values}: Prints the top 20 most frequent
+categories sorted in decreasing order, along with a note indicating
+how many unique values exist in total.
+\item \strong{<= 20 unique values}: Prints the full frequency table.
+Typical for categorical variables such as \code{seurat_clusters} or
+\code{orig.ident}.
 }
 }
 \examples{
