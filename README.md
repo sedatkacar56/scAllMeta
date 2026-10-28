@@ -2,7 +2,10 @@
 
 One call to see every column of your Seurat metadata.
 
-`allMetaTables()` prints a frequency table for each column in `seurat_obj@meta.data`, so you can check clusters, samples, annotations and labels in one glance after integration, annotation or any metadata change.
+- `allMetaView()` opens an interactive page in your browser: a searchable column list, counts, percentages and bars for every value, histograms for numeric columns, and CSV download. Best for objects with many columns.
+- `allMetaTables()` prints a frequency table for each column in the console.
+
+Use them to check clusters, samples, annotations and labels in one glance after integration, annotation or any metadata change.
 
 ## Installation
 
@@ -18,8 +21,25 @@ Works with any [Seurat](https://satijalab.org/seurat/) object. The package itsel
 ```r
 library(allmeta)
 
+# interactive page (recommended for many columns)
+allMetaView(seurat_obj)
+
+# save the page to share it
+allMetaView(seurat_obj, file = "metadata_overview.html")
+
+# console tables
 allMetaTables(seurat_obj)
 ```
+
+### allMetaView() page
+
+- **Overview** lists every column with its type, number of unique values and share of missing values. Click a row to open that column.
+- **Categorical columns** show each value with its cell count, percentage of all cells and a bar. You can filter values, sort by count or A to Z, and download the table as CSV. `NA` is shown as its own grey row.
+- **Numeric columns** (more than `numeric_min` unique values, default 50) show min, quartiles, mean, max and a histogram.
+- Lists up to `max_levels` values per column (default 100) and says how many cells are in the values not shown.
+- The page is one HTML file. It needs no internet connection and no extra packages, and follows your light or dark mode.
+
+### allMetaTables() output
 
 Example output:
 
@@ -37,7 +57,7 @@ Column: nCount_RNA
 Not applicable ( 9876 unique values)
 ```
 
-## Rules
+## allMetaTables() rules
 
 | Unique values in the column | What is printed |
 |---|---|
