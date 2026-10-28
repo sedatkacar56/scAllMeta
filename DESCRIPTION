@@ -1,0 +1,14 @@
+Package: allmeta
+Type: Package
+Title: Print Summary Tables for All Seurat Metadata Columns
+Version: 0.1.0
+Authors@R: person("Sedat", "Kacar", email = "sedatkacar56@gmail.com", role = c("aut", "cre"))
+Description: Prints a frequency table for every column in the metadata of a
+    Seurat object in one call. Columns with many unique values, such as
+    continuous quality metrics, are flagged as not applicable, and columns with
+    a moderate number of values show only the most frequent entries.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Suggests: Seurat
