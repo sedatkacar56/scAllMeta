@@ -17,6 +17,12 @@
 #'   is shown as a summary and histogram instead of a table. Default \code{50}.
 #' @param title Character or \code{NULL}. Page title. Default: the name of the
 #'   object you passed.
+#' @param compare Logical. Embed each categorical column so that, on the page,
+#'   you can pick a second column and turn the table into a contingency table.
+#'   This makes the file larger (about 1 byte per cell per column before
+#'   compression). Use \code{FALSE} for a small page. Default \code{TRUE}.
+#' @param compare_max_levels Integer. Only columns with at most this many
+#'   values can be compared. Maximum 254. Default \code{100}.
 #'
 #' @return Invisibly returns the path of the HTML file.
 #'
@@ -27,6 +33,12 @@
 #' them, sort them A to Z, or download them as CSV. Percentages are shares of
 #' all cells, including \code{NA}. The page needs no internet connection and no
 #' extra packages.
+#'
+#' To compare, type another column name in the "Compare with" box. The table
+#' becomes a contingency table: the values of the open column are the rows and
+#' the values of the other column are the columns, each cell showing the
+#' number of cells and a percentage (of the column, the row or all cells), with
+#' a TOTAL row and column. Counts are computed on the page from every cell.
 #'
 #' @examples
 #' \dontrun{
@@ -40,7 +52,8 @@
 #'
 #' @export
 allMetaView <- function(seurat_obj, file = NULL, open = interactive(),
-                        max_levels = 100, numeric_min = 50, title = NULL) {
+                        max_levels = 100, numeric_min = 50, title = NULL,
+                        compare = TRUE, compare_max_levels = 100) {
 
   if (is.null(title)) title <- paste(deparse(substitute(seurat_obj))[1], "metadata")
   md <- if (is.data.frame(seurat_obj)) seurat_obj else seurat_obj@meta.data
@@ -69,9 +82,19 @@ allMetaView <- function(seurat_obj, file = NULL, open = interactive(),
     levels <- lapply(seq_along(shown), function(i)
       list(v = names(shown)[i], n = as.numeric(shown[i]), na = FALSE))
     if (n_na > 0) levels <- c(levels, list(list(v = "NA", n = n_na, na = TRUE)))
-    list(name = nm, type = "categorical", n_unique = n_unique, n_na = n_na,
-         levels = levels, hidden_levels = max(length(tb) - length(shown), 0),
-         hidden_cells = as.numeric(sum(tb) - sum(shown)))
+    out <- list(name = nm, type = "categorical", n_unique = n_unique, n_na = n_na,
+                levels = levels, hidden_levels = max(length(tb) - length(shown), 0),
+                hidden_cells = as.numeric(sum(tb) - sum(shown)))
+
+    # One byte per cell (0 = NA, 1.. = value in count order), compressed, so the
+    # page can cross-tabulate any two columns without R.
+    if (compare && length(tb) <= min(compare_max_levels, 254)) {
+      codes <- match(as.character(x), names(tb))
+      codes[is.na(codes)] <- 0L
+      out$all_levels <- as.list(names(tb))
+      out$z <- .b64(memCompress(as.raw(codes), "gzip"))
+    }
+    out
   })
 
   payload <- .json(list(n_cells = n_cells, columns = cols))
@@ -85,8 +108,23 @@ allMetaView <- function(seurat_obj, file = NULL, open = interactive(),
   con <- file(file, "w", encoding = "UTF-8")
   on.exit(close(con))
   writeLines(html, con)
+  if (compare) message("Page size: ", round(file.size(file) / 1e6, 1),
+                       " MB. Use compare = FALSE for a smaller page without cross-tables.")
   if (open) utils::browseURL(normalizePath(file))
   invisible(file)
+}
+
+# Base 64 encoder for a raw vector (base R has none).
+.b64 <- function(r) {
+  A <- strsplit("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", "")[[1]]
+  pad <- (3 - length(r) %% 3) %% 3
+  m <- matrix(c(as.integer(r), rep(0L, pad)), nrow = 3)
+  v <- bitwShiftL(m[1, ], 16L) + bitwShiftL(m[2, ], 8L) + m[3, ]
+  idx <- rbind(bitwAnd(bitwShiftR(v, 18L), 63L), bitwAnd(bitwShiftR(v, 12L), 63L),
+               bitwAnd(bitwShiftR(v, 6L), 63L), bitwAnd(v, 63L))
+  s <- paste(A[idx + 1L], collapse = "")
+  if (pad > 0) s <- paste0(substr(s, 1L, nchar(s) - pad), strrep("=", pad))
+  s
 }
 
 # Format a number for display on the page.

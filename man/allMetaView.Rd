@@ -10,7 +10,9 @@ allMetaView(
   open = interactive(),
   max_levels = 100,
   numeric_min = 50,
-  title = NULL
+  title = NULL,
+  compare = TRUE,
+  compare_max_levels = 100
 )
 }
 \arguments{
@@ -30,6 +32,14 @@ is shown as a summary and histogram instead of a table. Default \code{50}.}
 
 \item{title}{Character or \code{NULL}. Page title. Default: the name of the
 object you passed.}
+
+\item{compare}{Logical. Embed each categorical column so that, on the page,
+you can pick a second column and turn the table into a contingency table.
+This makes the file larger (about 1 byte per cell per column before
+compression). Use \code{FALSE} for a small page. Default \code{TRUE}.}
+
+\item{compare_max_levels}{Integer. Only columns with at most this many
+values can be compared. Maximum 254. Default \code{100}.}
 }
 \value{
 Invisibly returns the path of the HTML file.
@@ -47,6 +57,12 @@ missing values. Click a column to see its values sorted by count, filter
 them, sort them A to Z, or download them as CSV. Percentages are shares of
 all cells, including \code{NA}. The page needs no internet connection and no
 extra packages.
+
+To compare, type another column name in the "Compare with" box. The table
+becomes a contingency table: the values of the open column are the rows and
+the values of the other column are the columns, each cell showing the
+number of cells and a percentage (of the column, the row or all cells), with
+a TOTAL row and column. Counts are computed on the page from every cell.
 }
 \examples{
 \dontrun{

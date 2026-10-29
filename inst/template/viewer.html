@@ -58,6 +58,21 @@ tbody tr.link:hover { background:var(--accent-soft); }
 .note { color:var(--muted); font-size:12.5px; padding:10px 14px 0; }
 svg.hist { width:100%; height:200px; display:block; }
 .empty { padding:24px; color:var(--muted); }
+.xwrap { overflow:auto; max-height:70vh; }
+table.x th, table.x td { white-space:nowrap; }
+table.x thead th { position:sticky; top:0; background:var(--panel); z-index:2; text-align:right; }
+table.x thead th:first-child, table.x tbody td:first-child { position:sticky; left:0; background:var(--panel); z-index:1; text-align:left; }
+table.x thead th:first-child { z-index:3; }
+table.x td.c { text-align:right; font-variant-numeric:tabular-nums; }
+table.x td.c small { display:block; color:var(--muted); font-size:11px; }
+table.x tr.tot td { font-weight:600; border-top:2px solid var(--line); }
+table.x td.tc, table.x th.tc { border-left:2px solid var(--line); }
+.seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+.seg button { border:0; background:var(--bg); color:var(--text); font:inherit; padding:7px 10px; cursor:pointer; }
+.seg button.on { background:var(--accent); color:#fff; }
+.cmp { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:0 0 16px; }
+.cmp input { margin:0; max-width:340px; }
+.hint { color:var(--muted); font-size:12.5px; }
 @media (max-width:760px) { .app { grid-template-columns:1fr; height:auto; } aside { max-height:40vh; } main { padding:20px 16px; } }
 </style>
 </head>
@@ -145,10 +160,18 @@ function renderColumn(c) {
     main.innerHTML = h;
     return;
   }
-  h += '</div><div class="card"><div class="tools"><input type="search" id="lq" placeholder="Filter values..." autocomplete="off">' +
+  h += '</div>' + compareBox(c);
+  if (compareWith[c.name]) {
+    main.innerHTML = h;
+    wireCompare(c);
+    renderCross(c, DATA.columns.find(x => x.name === compareWith[c.name]));
+    return;
+  }
+  h += '<div class="card"><div class="tools"><input type="search" id="lq" placeholder="Filter values..." autocomplete="off">' +
     '<button class="btn" id="sortb">Sort: ' + (sortAlpha ? "A-Z" : "count") + '</button><button class="btn" id="csvb">Download CSV</button></div>' +
     '<table><thead><tr><th>Value</th><th class="n">Cells</th><th class="n">%</th><th class="barcell"></th></tr></thead><tbody id="tb"></tbody></table><div id="more"></div></div>';
   main.innerHTML = h;
+  wireCompare(c);
   const draw = () => {
     const term = document.getElementById("lq").value.trim().toLowerCase();
     let rows = c.levels.filter(l => !term || String(l.v).toLowerCase().includes(term));
@@ -173,6 +196,97 @@ function renderColumn(c) {
     a.href = URL.createObjectURL(new Blob([csv], {type: "text/csv"}));
     a.download = c.name + "_counts.csv";
     a.click();
+  };
+}
+
+// ---- compare two columns (contingency table) ----
+const compareWith = {};
+const decoded = {};
+let basis = "col";
+
+const comparable = () => DATA.columns.filter(c => c.z);
+
+function compareBox(c) {
+  if (!c.z) {
+    return '<div class="cmp"><span class="hint">' + (DATA.columns.some(x => x.z)
+      ? 'This column has too many values to compare.' : 'Comparing was turned off (compare = FALSE).') + '</span></div>';
+  }
+  const opts = comparable().filter(x => x.name !== c.name).map(x => '<option value="' + esc(x.name) + '">').join("");
+  return '<div class="cmp"><b>Compare with</b><input type="search" id="cmpq" list="cmpl" placeholder="Type a column name..." autocomplete="off" value="' +
+    esc(compareWith[c.name] || "") + '"><datalist id="cmpl">' + opts + '</datalist>' +
+    (compareWith[c.name] ? '<button class="btn" id="cmpx">Clear</button>' : '<span class="hint">Pick a second column to turn this table into a contingency table.</span>') + '</div>';
+}
+
+function wireCompare(c) {
+  const q = document.getElementById("cmpq");
+  if (!q) return;
+  q.onchange = () => {
+    const hit = comparable().find(x => x.name === q.value.trim() && x.name !== c.name);
+    if (hit) { compareWith[c.name] = hit.name; renderColumn(c); }
+  };
+  const x = document.getElementById("cmpx");
+  if (x) x.onclick = () => { delete compareWith[c.name]; renderColumn(c); };
+}
+
+async function codesOf(c) {
+  if (decoded[c.name]) return decoded[c.name];
+  const bin = atob(c.z), u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  const ds = new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream("deflate")));
+  return decoded[c.name] = new Uint8Array(await ds.arrayBuffer());
+}
+
+async function renderCross(a, b) {
+  const host = document.createElement("div");
+  host.innerHTML = '<div class="card"><div class="empty">Counting cells...</div></div>';
+  main.appendChild(host);
+  const [ca, cb] = await Promise.all([codesOf(a), codesOf(b)]);
+  if (compareWith[a.name] !== b.name || current !== a.name) return;
+  const ka = a.all_levels.length + 1, kb = b.all_levels.length + 1;
+  const cnt = new Float64Array(ka * kb);
+  for (let i = 0; i < ca.length; i++) cnt[ca[i] * kb + cb[i]]++;
+  const rowT = new Float64Array(ka), colT = new Float64Array(kb);
+  for (let r = 0; r < ka; r++) for (let k = 0; k < kb; k++) { rowT[r] += cnt[r * kb + k]; colT[k] += cnt[r * kb + k]; }
+  const grand = ca.length;
+  const rn = r => r === 0 ? "NA" : a.all_levels[r - 1], cn = k => k === 0 ? "NA" : b.all_levels[k - 1];
+  const rows = [], cols = [];
+  for (let r = 1; r < ka; r++) if (rowT[r] > 0) rows.push(r);
+  if (rowT[0] > 0) rows.push(0);
+  for (let k = 1; k < kb; k++) if (colT[k] > 0) cols.push(k);
+  if (colT[0] > 0) cols.push(0);
+  const natural = f => (x, y) => (x === 0) - (y === 0) || String(f(x)).localeCompare(String(f(y)), undefined, {numeric: true});
+  rows.sort(natural(rn)); cols.sort(natural(cn));
+
+  const cell = (n, d) => '<td class="c">' + fmt(n) + (basis === "none" ? "" : '<small>' + pfmt(pct(n, d)) + '</small>') + '</td>';
+  const shade = (n, d) => 'style="background:color-mix(in srgb, var(--bar) ' + Math.min(70, 70 * (d ? n / d : 0)).toFixed(0) + '%, transparent)"';
+  let t = '<div class="card"><div class="tools"><div class="seg" id="seg">' +
+    [["col", "% of column"], ["row", "% of row"], ["all", "% of all"], ["none", "Counts only"]].map(p =>
+      '<button data-b="' + p[0] + '" class="' + (basis === p[0] ? "on" : "") + '">' + p[1] + '</button>').join("") +
+    '</div><button class="btn" id="csvx">Download CSV</button></div>' +
+    '<div class="note">Rows: <b>' + esc(a.name) + '</b> (' + rows.length + ') · Columns: <b>' + esc(b.name) + '</b> (' + cols.length + ')</div>' +
+    '<div class="xwrap"><table class="x"><thead><tr><th>' + esc(a.name) + '</th>' +
+    cols.map(k => '<th>' + esc(cn(k)) + '</th>').join("") + '<th class="tc">TOTAL</th></tr></thead><tbody>';
+  for (const r of rows) {
+    t += '<tr class="' + (r === 0 ? "na" : "") + '"><td class="lv">' + esc(rn(r)) + '</td>';
+    for (const k of cols) {
+      const n = cnt[r * kb + k], d = basis === "col" ? colT[k] : basis === "row" ? rowT[r] : grand;
+      t += cell(n, d).replace('<td class="c">', '<td class="c" ' + (basis === "none" ? "" : shade(n, d)) + '>');
+    }
+    t += cell(rowT[r], basis === "row" ? rowT[r] : grand).replace('class="c"', 'class="c tc"') + '</tr>';
+  }
+  t += '<tr class="tot"><td>TOTAL</td>' + cols.map(k => cell(colT[k], basis === "col" ? colT[k] : grand)).join("") +
+    cell(grand, grand).replace('class="c"', 'class="c tc"') + '</tr></tbody></table></div></div>';
+  host.innerHTML = t;
+  host.querySelectorAll("#seg button").forEach(btn => btn.onclick = () => { basis = btn.dataset.b; renderColumn(a); });
+  host.querySelector("#csvx").onclick = () => {
+    const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+    const lines = [[q(a.name + " \\ " + b.name)].concat(cols.map(k => q(cn(k))), ["TOTAL"]).join(",")];
+    for (const r of rows) lines.push([q(rn(r))].concat(cols.map(k => cnt[r * kb + k]), [rowT[r]]).join(","));
+    lines.push(["TOTAL"].concat(cols.map(k => colT[k]), [grand]).join(","));
+    const el = document.createElement("a");
+    el.href = URL.createObjectURL(new Blob([lines.join("\n")], {type: "text/csv"}));
+    el.download = a.name + "_vs_" + b.name + ".csv";
+    el.click();
   };
 }
 
