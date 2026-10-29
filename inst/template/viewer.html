@@ -306,7 +306,7 @@ function renderColumn(c) {
 // ---- compare two columns (contingency table) ----
 const compareWith = {};
 const decoded = {};
-let basis = "col";
+let basis = "col", change = false;
 
 const comparable = () => DATA.columns.filter(c => c.z);
 
@@ -361,6 +361,22 @@ async function renderCross(a, b) {
   const natural = f => (x, y) => (x === 0) - (y === 0) || String(f(x)).localeCompare(String(f(y)), undefined, {numeric: true});
   rows.sort(natural(rn)); cols.sort(natural(cn));
 
+  // Change (%) versus the first column, after scaling every column to the
+  // first column's total (sample-size adjusted): (n * T1 / Tj - n1) * 100 / n1
+  const base = cols[0], others = cols.slice(1);
+  const chg = (r, k) => {
+    const n1 = cnt[r * kb + base];
+    return n1 > 0 ? ((cnt[r * kb + k] * colT[base] / colT[k]) - n1) * 100 / n1 : null;
+  };
+  const chgFmt = v => v === null ? "-" : (v > 0 ? "+" : "") + v.toFixed(1) + "%";
+  const showChange = change && others.length > 0;
+  if (showChange) {
+    const key = r => { const v = chg(r, others[0]); return v === null ? -Infinity : v; };
+    const nas = rows.filter(r => r === 0), rest = rows.filter(r => r !== 0);
+    rest.sort((x, y) => key(y) - key(x));
+    rows.length = 0; rows.push(...rest, ...nas);
+  }
+
   // denominator for the percentage of one cell
   const dn = (r, k) => basis === "col" ? colT[k] : basis === "row" ? rowT[r] : grand;
   let top = 0, low = Infinity;
@@ -392,11 +408,13 @@ async function renderCross(a, b) {
     seg.map(p => '<button data-b="' + p[0] + '" class="' + (basis === p[0] ? "on" : "") + '">' + p[1] + '</button>').join("") + '</span>' +
     '<button class="btn ' + (heat ? "on" : "") + '" id="heatb">Heatmap</button>' +
     '<button class="btn ' + (split ? "on" : "") + '" id="splitb">% in separate columns</button>' +
+    '<button class="btn ' + (change ? "on" : "") + '" id="chgb" title="Each column is scaled to the first column\'s total, then compared with the first column">Change % vs first column</button>' +
     '<button class="btn" id="csvx">Download CSV</button></div>';
   if (heat) t += '<div class="legend"><span>' + showV(low) + '</span><span class="ramp" style="background:' + rampCss() + '"></span><span>' + showV(top) + '</span></div>';
   t += '<div class="note">Rows: <b>' + esc(a.name) + '</b> (' + rows.length + ') · Columns: <b>' + esc(b.name) + '</b> (' + cols.length + ')</div>' +
     '<div class="xwrap"><table class="x"><thead><tr><th>' + esc(a.name) + '</th>' +
-    cols.map(k => head(esc(cn(k)))).join("") + head("TOTAL", "tc") + '</tr></thead><tbody>';
+    cols.map(k => head(esc(cn(k)))).join("") + head("TOTAL", "tc") +
+    (showChange ? others.map(k => '<th>Change (%) ' + esc(cn(k)) + '</th>').join("") : "") + '</tr></thead><tbody>';
   for (const r of rows) {
     t += '<tr class="' + (r === 0 ? "na" : "") + '"><td class="lv">' + esc(rn(r)) + '</td>';
     for (const k of cols) {
@@ -405,14 +423,18 @@ async function renderCross(a, b) {
       if (heat) { const hc = ramp(level(r, k)); style = 'style="background:' + hc.bg + ';color:' + hc.fg + '"'; }
       t += cellHtml(n, dn(r, k), style);
     }
-    t += cellHtml(rowT[r], basis === "row" ? rowT[r] : grand, "", "tc") + '</tr>';
+    t += cellHtml(rowT[r], basis === "row" ? rowT[r] : grand, "", "tc");
+    if (showChange) t += others.map(k => '<td class="c flat">' + chgFmt(chg(r, k)) + '</td>').join("");
+    t += '</tr>';
   }
   t += '<tr class="tot"><td>TOTAL</td>' + cols.map(k => cellHtml(colT[k], basis === "col" ? colT[k] : grand)).join("") +
-    cellHtml(grand, grand, "", "tc") + '</tr></tbody></table></div></div>';
+    cellHtml(grand, grand, "", "tc") + (showChange ? others.map(() => '<td class="c flat">-</td>').join("") : "") +
+    '</tr></tbody></table></div></div>';
   host.innerHTML = t;
   host.querySelectorAll("#seg button").forEach(btn => btn.onclick = () => { basis = btn.dataset.b; renderColumn(a); });
   host.querySelector("#heatb").onclick = () => { heat = !heat; renderColumn(a); };
   host.querySelector("#splitb").onclick = () => { split = !split; renderColumn(a); };
+  host.querySelector("#chgb").onclick = () => { change = !change; renderColumn(a); };
   host.querySelector("#csvx").onclick = () => {
     const q = v => '"' + String(v).replace(/"/g, '""') + '"';
     const lines = [[q(a.name + " \\ " + b.name)].concat(cols.map(k => q(cn(k))), ["TOTAL"]).join(",")];
