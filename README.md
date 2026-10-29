@@ -1,4 +1,4 @@
-# allmeta
+# scAllMeta
 
 One call to see every column of your Seurat metadata.
 
@@ -11,7 +11,7 @@ Use them to check clusters, samples, annotations and labels in one glance after 
 
 ```r
 # install.packages("remotes")
-remotes::install_github("sedatkacar56/allmeta")
+remotes::install_github("sedatkacar56/scAllMeta")
 ```
 
 Works with any [Seurat](https://satijalab.org/seurat/) object. The package itself has no required dependencies.
@@ -19,7 +19,7 @@ Works with any [Seurat](https://satijalab.org/seurat/) object. The package itsel
 ## Usage
 
 ```r
-library(allmeta)
+library(scAllMeta)
 
 # interactive page (recommended for many columns)
 allMetaView(seurat_obj)

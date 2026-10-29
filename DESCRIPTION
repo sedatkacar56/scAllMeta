@@ -1,4 +1,4 @@
-Package: allmeta
+Package: scAllMeta
 Type: Package
 Title: Print Summary Tables for All Seurat Metadata Columns
 Version: 0.1.0

@@ -98,7 +98,7 @@ allMetaView <- function(seurat_obj, file = NULL, open = interactive(),
   })
 
   payload <- .json(list(n_cells = n_cells, columns = cols))
-  tpl <- readLines(system.file("template", "viewer.html", package = "allmeta"),
+  tpl <- readLines(system.file("template", "viewer.html", package = "scAllMeta"),
                    encoding = "UTF-8", warn = FALSE)
   tpl <- paste(tpl, collapse = "\n")
   html <- sub("__DATA__", gsub("\\", "\\\\", payload, fixed = TRUE), tpl)
