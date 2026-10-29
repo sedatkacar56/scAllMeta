@@ -110,8 +110,28 @@ allMetaView <- function(seurat_obj, file = NULL, open = interactive(),
   writeLines(html, con)
   if (compare) message("Page size: ", round(file.size(file) / 1e6, 1),
                        " MB. Use compare = FALSE for a smaller page without cross-tables.")
-  if (open) utils::browseURL(normalizePath(file))
+  path <- normalizePath(file)
+  message("Page saved to: ", path)
+  if (open) .open_page(path)
   invisible(file)
+}
+
+# Open in the system's default browser. browseURL() would send the page to the
+# RStudio viewer pane, an old embedded browser that shows it blank.
+.open_page <- function(path) {
+  ok <- tryCatch({
+    sys <- Sys.info()[["sysname"]]
+    if (sys == "Windows") {
+      get("shell.exec", envir = baseenv())(path)
+    } else if (sys == "Darwin") {
+      system2("open", shQuote(path))
+    } else {
+      system2("xdg-open", shQuote(path), stdout = FALSE, stderr = FALSE)
+    }
+    TRUE
+  }, error = function(e) FALSE, warning = function(w) FALSE)
+  if (!ok) utils::browseURL(path)
+  invisible(ok)
 }
 
 # Base 64 encoder for a raw vector (base R has none).
